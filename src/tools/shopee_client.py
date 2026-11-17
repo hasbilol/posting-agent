@@ -11,7 +11,9 @@ import hmac
 import json
 import logging
 import os
+import re
 import time
+import urllib.parse
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -21,6 +23,7 @@ logger = logging.getLogger(__name__)
 
 SHOPEE_GRAPHQL_URL = "https://openapi.affiliate.shopee.com.my/graphql"
 SHOPEE_API_VERSION = "2.0"
+SHOPEE_AN_REDIR_PREFIX = "https://s.shopee.com.my/an_redir?origin_link="
 
 
 @dataclass
@@ -43,12 +46,7 @@ class ShopeeClientConfig:
 
     app_id: str = field(default_factory=lambda: os.getenv("SHOPEE_APP_ID", ""))
     app_secret: str = field(default_factory=lambda: os.getenv("SHOPEE_APP_SECRET", ""))
-    affiliate_link_template: str = field(
-        default_factory=lambda: os.getenv(
-            "AFFILIATE_LINK_TEMPLATE",
-            "https://shopee.com.my/product/affiliate/{item_id}",
-        )
-    )
+    affiliate_id: str = field(default_factory=lambda: os.getenv("SHOPEE_AFFILIATE_ID", ""))
 
     @property
     def is_configured(self) -> bool:
@@ -191,6 +189,14 @@ class ShopeeAffiliateClient:
     # Fallback: Tavily Search API
     # ------------------------------------------------------------------
     def _fetch_via_tavily(self, niche: str, exclude_item_ids: set[str]) -> Optional[ShopeeProduct]:
+        affiliate_id = self.config.affiliate_id
+        if not affiliate_id:
+            raise RuntimeError(
+                "SHOPEE_AFFILIATE_ID is required when running in fallback mode "
+                "to prevent posting untracked affiliate links. "
+                "Set SHOPEE_AFFILIATE_ID in your environment or GitHub Secrets."
+            )
+
         if not self.tavily_client:
             api_key = os.getenv("TAVILY_API_KEY", "")
             if not api_key:
@@ -215,13 +221,16 @@ class ShopeeAffiliateClient:
 
         results = response.get("results", []) if isinstance(response, dict) else []
         for result in results:
-            url = result.get("url", "")
+            raw_url = result.get("url", "")
             title = result.get("title", "")
-            item_id = self._extract_item_id(url)
+            item_id = self._extract_item_id(raw_url)
             if not item_id or item_id in exclude_item_ids:
                 continue
 
-            offer_link = self.config.affiliate_link_template.format(item_id=item_id)
+            clean_product_url = self._clean_product_url(raw_url)
+            encoded_url = urllib.parse.quote(clean_product_url, safe="")
+            offer_link = f"{SHOPEE_AN_REDIR_PREFIX}{encoded_url}&affiliate_id={affiliate_id}&sub_id=threads"
+
             return ShopeeProduct(
                 item_id=item_id,
                 product_name=title or niche,
@@ -236,24 +245,46 @@ class ShopeeAffiliateClient:
         return None
 
     @staticmethod
+    def _clean_product_url(url: str) -> str:
+        """Strip query params and fragments to get clean canonical product URL."""
+        if not url:
+            return ""
+        parsed = urllib.parse.urlsplit(url)
+        return urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, parsed.path, "", ""))
+
+    @staticmethod
     def _extract_item_id(url: str) -> str:
         """Extract Shopee item ID from a product URL.
 
-        Shopee MY URLs look like: https://shopee.com.my/Product-Name-i.1234.567890123
-        or https://shopee.com.my/product/567890123
+        Handles:
+        1. Slug format: https://shopee.com.my/Product-Name-i.12345.678901234
+        2. Clean path format: https://shopee.com.my/product/12345/678901234
+        3. Query params fallback: ?iItemId=... or ?itemId=...
         """
         if not url:
             return ""
-        parts = url.rstrip("/").split("/")
-        for part in reversed(parts):
-            if part.isdigit():
-                return part
-        # Also check query params (?iItemId=...)
-        import urllib.parse
 
+        # Format 1: -i.<shop_id>.<item_id>
+        match_slug = re.search(r"-i\.(\d+)\.(\d+)", url)
+        if match_slug:
+            return match_slug.group(2)
+
+        # Format 2: /product/<shop_id>/<item_id>
+        match_product = re.search(r"/product/(\d+)/(\d+)", url)
+        if match_product:
+            return match_product.group(2)
+
+        # Fallback to query params
         parsed = urllib.parse.urlparse(url)
         for key in ("iItemId", "itemId", "sp_atk"):
             val = urllib.parse.parse_qs(parsed.query).get(key)
             if val and val[0].isdigit():
                 return val[0]
+
+        # Last-resort trailing numeric segment
+        parts = parsed.path.rstrip("/").split("/")
+        for part in reversed(parts):
+            if part.isdigit():
+                return part
+
         return ""

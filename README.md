@@ -103,7 +103,8 @@ Follow these steps in order. Every manual configuration, credential, and permiss
 3. Once approved, find your credentials:
    - **App ID** (`SHOPEE_APP_ID`)
    - **App Secret** (`SHOPEE_APP_SECRET`)
-4. If approval is **pending**, the system automatically falls back to **Tavily Search** mode (`site:shopee.com.my`) + the `AFFILIATE_LINK_TEMPLATE` wrapper — so you can still test end-to-end.
+4. Get your **Affiliate ID** from the dashboard (numeric, e.g., `12314090111`) — this is `SHOPEE_AFFILIATE_ID`.
+5. If Open API approval is **pending**, the system automatically falls back to **Tavily Search** mode (`site:shopee.com.my`) and constructs affiliate links using Shopee's official `an_redir` redirect format with your `SHOPEE_AFFILIATE_ID` — so you can still test end-to-end and earn commissions.
 
 ### Step 3 — LLM & Search Keys (Multi-Provider Free Router)
 
@@ -137,19 +138,19 @@ The project uses a **multi-provider fallback router** (`src/tools/llm_router.py`
    | `THREADS_USER_ID` | Your Threads numeric user ID |
    | `THREADS_ACCESS_TOKEN` | 60-day token from Step 1.5 |
    | `THREADS_REFRESH_TOKEN` | Refresh token (optional; kept for reference) |
-   | `SHOPEE_APP_ID` | Shopee Open API App ID |
-   | `SHOPEE_APP_SECRET` | Shopee Open API App Secret |
-   | `GEMINI_API_KEY` | Gemini API key (primary free LLM) |
+| `SHOPEE_APP_ID` | Shopee Open API App ID |
+    | `SHOPEE_APP_SECRET` | Shopee Open API App Secret |
+    | `SHOPEE_AFFILIATE_ID` | Shopee Affiliate ID (numeric, e.g. `12314090111`) — **required for fallback mode** |
+    | `GEMINI_API_KEY` | Gemini API key (primary free LLM) |
    | `GROQ_API_KEY` | (optional) Groq API key — free fallback |
    | `OPENROUTER_API_KEY` | (optional) OpenRouter API key — free fallback |
    | `NVIDIA_API_KEY` | (optional) NVIDIA NIM API key — free fallback |
    | `COHERE_API_KEY` | (optional) Cohere API key — free fallback |
    | `ZHIPU_API_KEY` | (optional) Zhipu AI API key — free fallback |
-   | `DEEPSEEK_API_KEY` | (optional) DeepSeek API key — free fallback |
-   | `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | (optional) custom OpenAI-compatible endpoint (e.g. FreeLLMAPI) |
-   | `TAVILY_API_KEY` | Tavily API key |
-   | `AFFILIATE_LINK_TEMPLATE` | (optional) e.g. `https://shopee.com.my/product/affiliate/{item_id}` |
-   | `GH_PAT` | Fine-grained PAT with Secrets write (see below) |
+| `DEEPSEEK_API_KEY` | (optional) DeepSeek API key — free fallback |
+    | `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | (optional) custom OpenAI-compatible endpoint (e.g. FreeLLMAPI) |
+    | `TAVILY_API_KEY` | Tavily API key |
+    | `GH_PAT` | Fine-grained PAT with Secrets write (see below) |
 
 3. **Generate a `GH_PAT` (Fine-grained Personal Access Token)**
    - Go to **GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens → Generate new token**.
