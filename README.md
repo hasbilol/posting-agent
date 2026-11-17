@@ -109,13 +109,17 @@ Follow these steps in order. Every manual configuration, credential, and permiss
 
 The project uses a **multi-provider fallback router** (`src/tools/llm_router.py`) that tries providers in order until one succeeds — mirroring FreeLLMAPI's routing strategy. **Only ONE key is required**; the rest are optional backups for resilience.
 
-- **Gemini**: `GEMINI_API_KEY` from [aistudio.google.com](https://aistudio.google.com) → "Get API Key" (free tier).
+- **Custom OpenAI-compatible endpoint** (for local testing with FreeLLMAPI): `LLM_BASE_URL` (e.g. `http://127.0.0.1:31415/v1`), `LLM_API_KEY`, `LLM_MODEL` (default `auto`).
+- **Google AI Studio (Gemini)**: `GEMINI_API_KEY` from [aistudio.google.com](https://aistudio.google.com) → "Get API Key" (free tier).
 - **Groq** (optional backup): `GROQ_API_KEY` from [console.groq.com](https://console.groq.com) → API Keys (free, fast).
-- **DeepSeek** (optional backup): `DEEPSEEK_API_KEY` from [platform.deepseek.com](https://platform.deepseek.com) → API Keys (free tier).
-- **Custom OpenAI-compatible** (optional, e.g. local FreeLLMAPI for local testing): set `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` (default `auto`).
+- **OpenRouter** (optional backup): `OPENROUTER_API_KEY` from [openrouter.ai](https://openrouter.ai) → Keys (free credits).
+- **NVIDIA NIM** (optional backup): `NVIDIA_API_KEY` from [build.nvidia.com](https://build.nvidia.com) → API Keys.
+- **Cohere** (optional backup): `COHERE_API_KEY` from [dashboard.cohere.com](https://dashboard.cohere.com) → API Keys.
+- **Zhipu AI (Z.ai)** (optional backup): `ZHIPU_API_KEY` from [open.bigmodel.cn](https://open.bigmodel.cn) → API Keys.
+- **DeepSeek** (optional backup): `DEEPSEEK_API_KEY` from [platform.deepseek.com](https://platform.deepseek.com) → API Keys.
 - **Tavily**: `TAVILY_API_KEY` from [tavily.com](https://tavily.com).
 
-**Routing order:** Gemini → Groq → DeepSeek → Custom endpoint. If one fails, the router automatically falls back to the next.
+**Routing order:** Custom endpoint → Google AI Studio → Groq → OpenRouter → NVIDIA NIM → Cohere → Zhipu AI → DeepSeek. If one fails, the router automatically falls back to the next.
 
 ### Step 4 — GitHub Repository Settings
 
@@ -137,8 +141,12 @@ The project uses a **multi-provider fallback router** (`src/tools/llm_router.py`
    | `SHOPEE_APP_SECRET` | Shopee Open API App Secret |
    | `GEMINI_API_KEY` | Gemini API key (primary free LLM) |
    | `GROQ_API_KEY` | (optional) Groq API key — free fallback |
+   | `OPENROUTER_API_KEY` | (optional) OpenRouter API key — free fallback |
+   | `NVIDIA_API_KEY` | (optional) NVIDIA NIM API key — free fallback |
+   | `COHERE_API_KEY` | (optional) Cohere API key — free fallback |
+   | `ZHIPU_API_KEY` | (optional) Zhipu AI API key — free fallback |
    | `DEEPSEEK_API_KEY` | (optional) DeepSeek API key — free fallback |
-   | `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | (optional) custom OpenAI-compatible endpoint |
+   | `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | (optional) custom OpenAI-compatible endpoint (e.g. FreeLLMAPI) |
    | `TAVILY_API_KEY` | Tavily API key |
    | `AFFILIATE_LINK_TEMPLATE` | (optional) e.g. `https://shopee.com.my/product/affiliate/{item_id}` |
    | `GH_PAT` | Fine-grained PAT with Secrets write (see below) |
