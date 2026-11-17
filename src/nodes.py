@@ -14,6 +14,7 @@ from typing import Any, Optional
 import requests
 
 from src.state import AgentState
+from src.tools.llm_router import LLMRouter
 from src.tools.shopee_client import ShopeeAffiliateClient
 from src.tools.threads_client import ThreadsClient
 
@@ -37,15 +38,6 @@ NICHE_POOL = [
     "phone accessories",
 ]
 
-COPYWRITER_SYSTEM_PROMPT = """You are a Malaysian social media copywriter for Threads.
-Write authentic, casual Bahasa Melayu / Manglish (Malay-English mix) posts that feel native and relatable.
-Rules:
-- NO hard-selling, NO spam, NO excessive emojis.
-- Hook + short relatable value proposition.
-- Keep it under {max_len} characters.
-- Do NOT include any links or URLs in the main post.
-- The reply post is a short call-to-action with the affiliate link."""
-
 
 # ----------------------------------------------------------------------
 # Helpers
@@ -67,14 +59,8 @@ def _save_history(entries: list[dict[str, Any]]) -> None:
         json.dump(entries, fh, ensure_ascii=False, indent=2)
 
 
-def _get_llm():
-    """Lazy import so tests / dry-run can run without the API key set."""
-    from langchain_google_genai import ChatGoogleGenerativeAI
-
-    api_key = os.getenv("GEMINI_API_KEY", "")
-    if not api_key:
-        raise RuntimeError("GEMINI_API_KEY is not set.")
-    return ChatGoogleGenerativeAI(model="gemini-2.5-flash", api_key=api_key)
+def _get_router() -> LLMRouter:
+    return LLMRouter()
 
 
 def _image_reachable(url: str) -> bool:
@@ -94,15 +80,14 @@ def idea_generator_node(state: AgentState) -> dict[str, Any]:
     history = _load_history()
     past_niches = [entry.get("niche", "") for entry in history]
 
-    llm = _get_llm()
+    router = _get_router()
     prompt = (
         "Pick ONE Shopee Malaysia niche keyword for a high-converting affiliate product.\n"
         f"Candidate niches: {', '.join(NICHE_POOL)}\n"
         f"Recently used niches (avoid): {', '.join(past_niches[-10:]) or 'none'}\n"
         "Return only the niche keyword, nothing else."
     )
-    resp = llm.invoke(prompt)
-    niche = str(resp.content).strip() if hasattr(resp, "content") else str(resp).strip()
+    niche = router.invoke(prompt).strip()
 
     # Fallback if LLM output looks weird
     if not niche or len(niche) > 60:
@@ -149,7 +134,7 @@ def shopee_fetcher_node(state: AgentState) -> dict[str, Any]:
 # Node 3: copywriter_node
 # ----------------------------------------------------------------------
 def copywriter_node(state: AgentState) -> dict[str, Any]:
-    llm = _get_llm()
+    router = _get_router()
     product = state["product_name"]
     price = state.get("price", 0.0)
     niche = state["niche"]
@@ -160,8 +145,7 @@ def copywriter_node(state: AgentState) -> dict[str, Any]:
         "It must be under 450 characters, no links, no hashtag spam, natural BM/Manglish.\n"
         "Output ONLY the post text."
     )
-    main_resp = llm.invoke(main_prompt)
-    main_text = str(main_resp.content).strip() if hasattr(main_resp, "content") else str(main_resp).strip()
+    main_text = router.invoke(main_prompt).strip()
 
     offer_link = state.get("offer_link", "")
     reply_text = f"Yang tanya link kat mana, boleh tengok kat sini 👉 {offer_link}"

@@ -105,10 +105,17 @@ Follow these steps in order. Every manual configuration, credential, and permiss
    - **App Secret** (`SHOPEE_APP_SECRET`)
 4. If approval is **pending**, the system automatically falls back to **Tavily Search** mode (`site:shopee.com.my`) + the `AFFILIATE_LINK_TEMPLATE` wrapper — so you can still test end-to-end.
 
-### Step 3 — LLM & Search Keys
+### Step 3 — LLM & Search Keys (Multi-Provider Free Router)
 
-- **Gemini**: Get a `GEMINI_API_KEY` from [aistudio.google.com](https://aistudio.google.com) → "Get API Key".
-- **Tavily**: Sign up at [tavily.com](https://tavily.com) and copy your `TAVILY_API_KEY`.
+The project uses a **multi-provider fallback router** (`src/tools/llm_router.py`) that tries providers in order until one succeeds — mirroring FreeLLMAPI's routing strategy. **Only ONE key is required**; the rest are optional backups for resilience.
+
+- **Gemini**: `GEMINI_API_KEY` from [aistudio.google.com](https://aistudio.google.com) → "Get API Key" (free tier).
+- **Groq** (optional backup): `GROQ_API_KEY` from [console.groq.com](https://console.groq.com) → API Keys (free, fast).
+- **DeepSeek** (optional backup): `DEEPSEEK_API_KEY` from [platform.deepseek.com](https://platform.deepseek.com) → API Keys (free tier).
+- **Custom OpenAI-compatible** (optional, e.g. local FreeLLMAPI for local testing): set `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` (default `auto`).
+- **Tavily**: `TAVILY_API_KEY` from [tavily.com](https://tavily.com).
+
+**Routing order:** Gemini → Groq → DeepSeek → Custom endpoint. If one fails, the router automatically falls back to the next.
 
 ### Step 4 — GitHub Repository Settings
 
@@ -128,7 +135,10 @@ Follow these steps in order. Every manual configuration, credential, and permiss
    | `THREADS_REFRESH_TOKEN` | Refresh token (optional; kept for reference) |
    | `SHOPEE_APP_ID` | Shopee Open API App ID |
    | `SHOPEE_APP_SECRET` | Shopee Open API App Secret |
-   | `GEMINI_API_KEY` | Gemini API key |
+   | `GEMINI_API_KEY` | Gemini API key (primary free LLM) |
+   | `GROQ_API_KEY` | (optional) Groq API key — free fallback |
+   | `DEEPSEEK_API_KEY` | (optional) DeepSeek API key — free fallback |
+   | `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` | (optional) custom OpenAI-compatible endpoint |
    | `TAVILY_API_KEY` | Tavily API key |
    | `AFFILIATE_LINK_TEMPLATE` | (optional) e.g. `https://shopee.com.my/product/affiliate/{item_id}` |
    | `GH_PAT` | Fine-grained PAT with Secrets write (see below) |

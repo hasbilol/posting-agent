@@ -31,6 +31,11 @@ jobs:
       SHOPEE_APP_ID: ${{ secrets.SHOPEE_APP_ID }}
       SHOPEE_APP_SECRET: ${{ secrets.SHOPEE_APP_SECRET }}
       GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+      GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+      LLM_BASE_URL: ${{ secrets.LLM_BASE_URL }}
+      LLM_API_KEY: ${{ secrets.LLM_API_KEY }}
+      LLM_MODEL: ${{ vars.LLM_MODEL || secrets.LLM_MODEL || 'auto' }}
       TAVILY_API_KEY: ${{ secrets.TAVILY_API_KEY }}
       AFFILIATE_LINK_TEMPLATE: ${{ vars.AFFILIATE_LINK_TEMPLATE || secrets.AFFILIATE_LINK_TEMPLATE || 'https://shopee.com.my/product/affiliate/{item_id}' }}
 

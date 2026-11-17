@@ -3,6 +3,13 @@ langgraph-checkpoint==2.0.26
 langgraph-prebuilt==0.2.0
 langgraph-sdk==0.1.42
 langchain-google-genai==2.0.10
+langchain-openai==0.2.14
+requests==2.32.3
+pydantic==2.10.3
+python-dotenv==1.2.4
+tavily-python==0.5.4
+langchain==0.3.13
+langchain-google-genai==2.0.10
 requests==2.32.3
 pydantic==2.10.3
 python-dotenv==1.2.4
