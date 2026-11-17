@@ -1,0 +1,73 @@
+# Task: Build an End-to-End Automated Shopee Affiliate to Threads Posting Agent
+
+Build a complete, production-ready Python project inside `D:\personal-project\posting-agent` (which is already linked to my Git repository). 
+
+The system must use **LangGraph** to orchestrate an autonomous pipeline that generates product ideas, fetches high-converting Malaysian Shopee products (with images and affiliate links), generates natural Bahasa Melayu/Manglish Threads copy, and publishes the post + affiliate link reply via the official **Meta Threads Graph API**, running on a schedule via **GitHub Actions**.
+
+## 1. Project Structure
+Create the following clean directory layout inside `D:\personal-project\posting-agent`:
+
+- `.github/workflows/autopost.yml` (Scheduled & manual trigger for posting)
+- `.github/workflows/refresh_token.yml` (Scheduled workflow every 45 days to refresh Meta Threads token)
+- `data/posted_history.json` (Tracks posted item IDs, product names, and timestamps to prevent duplicates)
+- `src/__init__.py`
+- `src/state.py` (LangGraph TypedDict / Pydantic state definition)
+- `src/nodes.py` (All LangGraph node implementations)
+- `src/graph.py` (LangGraph StateGraph wiring, conditional edges, and compilation)
+- `src/tools/__init__.py`
+- `src/tools/shopee_client.py` (Shopee Affiliate GraphQL API client + Tavily fallback search)
+- `src/tools/threads_client.py` (Meta Threads Graph API client: Container creation, publish, reply, token refresh)
+- `main.py` (Entrypoint script invoked by GitHub Actions or local CLI)
+- `requirements.txt` (Pinned dependencies: `langgraph`, `langchain-google-genai`, `requests`, `pydantic`, `python-dotenv`, `tavily-python`)
+- `.env.example` (Template of all required environment variables)
+- `.gitignore` (Ignore `.env`, `__pycache__`, `.venv`, etc.)
+- `README.md` (Architecture overview & setup guide)
+
+## 2. Technical Specifications & Pipeline Requirements
+
+### A. LangGraph Workflow (`src/state.py`, `src/nodes.py`, `src/graph.py`)
+Use **Google Gemini (`langchain-google-genai`, e.g., `gemini-2.5-flash`)** as the LLM and implement the following stateful nodes:
+1. **`idea_generator_node`**:
+   - Reads `data/posted_history.json` to inspect past categories and product IDs.
+   - Selects a fresh, high-demand Shopee Malaysia niche/keyword (e.g., desk setup gadgets, home organization, car/motorcycle accessories, daily lifestyle essentials) avoiding recent repeats.
+2. **`shopee_fetcher_node`**:
+   - **Primary Method (`Shopee Affiliate Open API`):** Implement signed GraphQL requests (`SHA256` signature using `SHOPEE_APP_ID` and `SHOPEE_APP_SECRET`) to query `productOfferV2` / `shopeeOfferV2`, filtering for high rating (`>= 4.8`), good commission rate, and available public image URLs. Extract `itemId`, `productName`, `price`, `imageUrl`, and `offerLink` (affiliate tracking link).
+   - **Fallback Method:** If Shopee Open API credentials are not yet configured, design a clean fallback interface using **Tavily Search API** (`site:shopee.com.my`) + a configurable affiliate link wrapper/template so the pipeline can still be tested end-to-end.
+   - Verify the `itemId` is not already present in `data/posted_history.json`.
+3. **`copywriter_node`**:
+   - Generates casual, authentic Malaysian Threads copy (natural BM / casual English mix, zero hard-selling spam).
+   - Outputs **two distinct fields** in state:
+     - `main_post_text`: Hook + short relatable value proposition (strictly **under 450 characters**, NO links inside the main post to protect Threads algorithm reach).
+     - `reply_post_text`: A short call-to-action containing the `offerLink` (e.g., `"Yang tanya link kat mana, boleh tengok kat sini 👉 {offerLink}"`).
+4. **`guardrail_node` (Conditional Edge)**:
+   - Validates that `len(main_post_text) <= 480`, `len(reply_post_text) <= 480`, `imageUrl` is reachable (`HTTP 200`), and `offerLink` is valid.
+   - If validation fails, route back to `copywriter_node` (with a retry counter max 2) to shorten/fix.
+5. **`threads_publisher_node`**:
+   - **Step 1:** `POST https://graph.threads.net/v1.0/{THREADS_USER_ID}/threads` with `media_type=IMAGE`, `image_url`, and `text=main_post_text`.
+   - **Step 2:** Poll container status if needed, then `POST https://graph.threads.net/v1.0/{THREADS_USER_ID}/threads_publish` with `creation_id`.
+   - **Step 3:** Immediately post the affiliate link as a **reply to the newly published thread** (`POST https://graph.threads.net/v1.0/{THREADS_USER_ID}/threads` with `media_type=TEXT`, `text=reply_post_text`, `reply_to_id={published_post_id}`, followed by `threads_publish`).
+6. **`history_logger_node`**:
+   - Appends the published product details, timestamp (MYT / UTC+8), and Threads post ID to `data/posted_history.json`.
+
+### B. GitHub Actions Automation (`.github/workflows/`)
+1. **`autopost.yml`**:
+   - Triggers on `workflow_dispatch` (manual testing) and `schedule` (twice daily at optimal Malaysian engagement hours: 12:30 PM MYT and 8:30 PM MYT -> `30 4,12 * * *` UTC).
+   - Sets up Python 3.11, installs `requirements.txt`, and runs `python main.py` using GitHub Secrets.
+   - **Auto-Commit Step:** Commits and pushes updated `data/posted_history.json` back to the repository (`github-actions[bot]`) so post history persists and prevents GitHub from disabling cron jobs after 60 days of inactivity.
+2. **`refresh_token.yml`**:
+   - Runs every 45 days (`0 0 1,15 */2 *`) and on `workflow_dispatch`.
+   - Calls `GET https://graph.threads.net/refresh_access_token?grant_type=th_refresh_token&access_token=$THREADS_ACCESS_TOKEN`.
+   - Uses GitHub CLI (`gh secret set THREADS_ACCESS_TOKEN`) with a `GH_PAT` secret to automatically update the repository secret before the 60-day expiry.
+
+### C. Local Dry-Run Support
+- Support a `--dry-run` CLI flag in `main.py` (`python main.py --dry-run`) that executes the full LangGraph pipeline (Idea -> Shopee Fetch -> Copywriting -> Guardrails) and prints the exact main post, reply post, and image URL to the console **without** publishing to Threads or modifying `posted_history.json`.
+
+## 3. Execution & Mandatory Final Output
+1. Write all files cleanly inside `D:\personal-project\posting-agent` and initialize `data/posted_history.json` with `[]`.
+2. Ensure all code has clear error handling, logging, and type hints.
+3. **CRITICAL — Detailed User Setup Guide:** Once you finish creating the codebase, provide me with a comprehensive, step-by-step action guide detailing every manual configuration, credential, ID, and permission I need to set up myself, specifically covering:
+   - **Meta Developer & Threads API:** How to create the Meta App, enable the Threads API use case, add my Threads account as a tester/public user, obtain my `THREADS_USER_ID`, exchange a short-lived token for a 60-day `THREADS_ACCESS_TOKEN`, and verify required permissions (`threads_basic`, `threads_content_publish`, `threads_manage_replies`).
+   - **Shopee Affiliate Portal:** Where to find/apply for Open API credentials (`SHOPEE_APP_ID` and `SHOPEE_APP_SECRET`) in the Shopee Affiliate Malaysia dashboard, and how to use the fallback mode if API approval is pending.
+   - **LLM & Search Keys:** How to configure `GEMINI_API_KEY` and `TAVILY_API_KEY`.
+   - **GitHub Repository Settings:** Exact list of **GitHub Actions Secrets** to add, how to generate a `GH_PAT` (Fine-grained Personal Access Token with Secrets write permission) for auto-refreshing the Threads token, and how to enable **Read and write permissions** under `Settings > Actions > General > Workflow permissions` so the bot can commit `posted_history.json`.
+   - **Testing Instructions:** Exact terminal commands to run `--dry-run` locally first before triggering `workflow_dispatch` on GitHub.

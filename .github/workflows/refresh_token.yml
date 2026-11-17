@@ -1,0 +1,66 @@
+name: Refresh Threads Token
+
+on:
+  workflow_dispatch:
+  schedule:
+    # Every 45 days (1st and 15th of alternating months)
+    - cron: "0 0 1,15 */2 *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: refresh-token
+  cancel-in-progress: false
+
+jobs:
+  refresh-token:
+    name: Refresh Meta Threads access token
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Refresh Threads access token
+        id: refresh
+        env:
+          THREADS_ACCESS_TOKEN: ${{ secrets.THREADS_ACCESS_TOKEN }}
+        run: |
+          python - <<'PY'
+          import os, sys, requests
+          token = os.getenv("THREADS_ACCESS_TOKEN", "")
+          if not token:
+              print("THREADS_ACCESS_TOKEN is not set; skipping.")
+              sys.exit(0)
+          url = "https://graph.threads.net/refresh_access_token"
+          params = {"grant_type": "th_refresh_token", "access_token": token}
+          resp = requests.get(url, params=params, timeout=30)
+          resp.raise_for_status()
+          data = resp.json()
+          new_token = data.get("access_token")
+          if not new_token:
+              print(f"Refresh failed: {data}")
+              sys.exit(1)
+          print(f"NEW_TOKEN={new_token}")
+          with open(os.environ.get("GITHUB_OUTPUT", "output.txt"), "a") as f:
+              f.write(f"NEW_TOKEN={new_token}\n")
+          print("Token refreshed successfully.")
+          PY
+
+      - name: Update repository secret
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: |
+          NEW_TOKEN="${{ steps.refresh.outputs.NEW_TOKEN }}"
+          if [ -z "$NEW_TOKEN" ]; then
+            echo "No new token; skipping secret update."
+            exit 0
+          fi
+          echo "$NEW_TOKEN" | gh secret set THREADS_ACCESS_TOKEN --body "$NEW_TOKEN"
